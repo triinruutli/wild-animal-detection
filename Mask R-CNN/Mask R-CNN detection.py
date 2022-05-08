@@ -52,6 +52,7 @@ from detectron2.data.datasets import register_coco_instances
 register_coco_instances("animals_train", {}, "/content/drive/MyDrive/ColabNotebooks/AnimalDetection/Data/annotations/annotations_test.json", "/content/drive/MyDrive/ColabNotebooks/AnimalDetection/Data/train")
 register_coco_instances("animals_val", {}, "/content/drive/MyDrive/ColabNotebooks/AnimalDetection/Data/annotations/annotations_test_val.json", "/content/drive/MyDrive/ColabNotebooks/AnimalDetection/Data/val")
 
+
 dataset_dicts = DatasetCatalog.get("animals_train")
 for d in random.sample(dataset_dicts, 1):
     img = cv2.imread(d["file_name"])
@@ -60,38 +61,14 @@ for d in random.sample(dataset_dicts, 1):
     pic=out.get_image()[:, :, ::-1]
     cv2_imshow(pic)
 
-"""# Let's run only COCO pre-trained model on animal dataset
-
-
-
-"""
-
-#Let's run only COCO pre-trained model on animal dataset 
-cfg = get_cfg()
-# add project-specific config (e.g., TensorMask) here if you're not running a model in detectron2's core library
-cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
-cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
-# Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
-cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
-predictor = DefaultPredictor(cfg)
-outputs = predictor(img)
-
-v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)
-out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-cv2_imshow(out.get_image()[:, :, ::-1])
-
 """# Train!
 
 fine-tune a COCO-pretrained R50-FPN Mask R-CNN model on the animal dataset
 
 """
 
-from detectron2.config import LazyConfig
-
-cfg = get_cfg()
-
 from detectron2.engine import DefaultTrainer
-
+cfg = get_cfg()
 cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
 cfg.DATASETS.TRAIN = ("animals_train",)
 cfg.INPUT.MASK_FORMAT="bitmask"
@@ -114,7 +91,6 @@ trainer.train()
 
 """## Inference & evaluation using the trained model
 Inference with the trained model on the animal validation dataset
-
 
 """
 
@@ -139,72 +115,13 @@ for d in random.sample(dataset_dicts, 2):
     image=out.get_image()[:, :, ::-1]
     cv2_imshow(image)
 
-"""It's possible to valuate model's performance using AP metric implemented in COCO API"""
+"""Validating model's performance using AP metric implemented in COCO API"""
 
 from detectron2.evaluation import COCOEvaluator, inference_on_dataset
 from detectron2.data import build_detection_test_loader
 evaluator = COCOEvaluator("animals_val", output_dir="./output")
 val_loader = build_detection_test_loader(cfg, "animals_val")
 print(inference_on_dataset(predictor.model, val_loader, evaluator))
-
-"""# Fast R-CNN
-
-"""
-
-
-
-from detectron2.engine import DefaultTrainer
-
-cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"))
-cfg.DATASETS.TRAIN = ("animals_train",)
-cfg.DATASETS.TEST = ()
-cfg.INPUT.MASK_FORMAT="polygon"
-cfg.DATALOADER.NUM_WORKERS = 4
-cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml")
-cfg.SOLVER.IMS_PER_BATCH = 2
-cfg.SOLVER.BASE_LR = 0.002  # pick a good LR
-cfg.SOLVER.MAX_ITER = 500    # 200 iterations seems good enough for this toy dataset
-cfg.SOLVER.STEPS = []        
-#cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 256   # faster, and good enough for this toy dataset (default: 512)
-cfg.MODEL.ROI_HEADS.NUM_CLASSES = 6
-
-os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-trainer = DefaultTrainer(cfg) 
-trainer.resume_or_load(resume=False)
-trainer.train()
-
-weights=os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
-cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")  # path to the model we just trained
-cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7   # set a custom testing threshold
-predictor = DefaultPredictor(cfg)
-
-# Commented out IPython magic to ensure Python compatibility.
-# Look at training curves in tensorboard:
-# %load_ext tensorboard
-# %tensorboard --logdir output
-
-from detectron2.utils.visualizer import ColorMode
-dataset_dicts = DatasetCatalog.get("animals_val")
-for d in random.sample(dataset_dicts, 2):    
-    im = cv2.imread(d["file_name"])
-    outputs = predictor(im)  # format is documented at https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
-    v = Visualizer(im[:, :, ::-1],
-                   metadata=MetadataCatalog.get("animals_val"), 
-                   scale=1, 
-                   instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels. This option is only available for segmentation models
-    )
-    out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-    image= out.get_image()[:, :, ::-1]
-    cv2_imshow(image)
-
-cv2.imwrite("output.jpg",image)
-
-from detectron2.evaluation import COCOEvaluator, inference_on_dataset
-from detectron2.data import build_detection_test_loader
-evaluator = COCOEvaluator("animals_val", output_dir="./output")
-val_loader = build_detection_test_loader(cfg, "animals_val")
-print(inference_on_dataset(predictor.model, val_loader, evaluator))
-# another equivalent way to evaluate the model is to use `trainer.test`
 
 """# Video output"""
 
@@ -214,8 +131,6 @@ from detectron2.data import datasets
 
 # %run detectron2/demo/demo.py --config-file /content/drive/MyDrive/ColabNotebooks/config_instance.yaml --video-input /content/drive/MyDrive/ColabNotebooks/AnimalDetection/Data/rabbit2.avi --confidence-threshold 0.7 --output video-output-drabbit2.mkv \
   --opts MODEL.WEIGHTS /content/output/model_final.pth
-
-
 
 from google.colab import files
 files.download('video-output-drabbit2.mkv')
